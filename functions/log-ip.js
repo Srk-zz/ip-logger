@@ -8,13 +8,11 @@ exports.handler = async function (event, context) {
   const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
 
   try {
-    const { ip } = JSON.parse(event.body);
-    if (!ip) {
-      return {
-        statusCode: 400,
-        body: JSON.stringify({ message: 'IP address is required' })
-      };
-    }
+    // Get client IP from event headers
+    const clientIp = event.headers['x-forwarded-for'] || 
+                     event.headers['x-real-ip'] || 
+                     event.requestContext?.identity?.sourceIp || 
+                     'unknown';
 
     // Get current file content (if it exists)
     let sha = null;
@@ -36,7 +34,7 @@ exports.handler = async function (event, context) {
     }
 
     // Append new IP with timestamp
-    const newEntry = `${ip} - ${new Date().toISOString()}\n`;
+    const newEntry = `${clientIp} - ${new Date().toISOString()}\n`;
     const updatedContent = content + newEntry;
     const encodedContent = Buffer.from(updatedContent).toString('base64');
 
@@ -66,13 +64,24 @@ exports.handler = async function (event, context) {
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ message: 'IP logged to GitHub' })
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type'
+      },
+      body: JSON.stringify({ 
+        message: 'IP logged successfully',
+        ip: clientIp 
+      })
     };
   } catch (error) {
     console.error('Error:', error);
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: 'Error logging IP to GitHub' })
+      headers: {
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify({ message: 'Error logging IP' })
     };
   }
 };
