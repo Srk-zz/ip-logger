@@ -8,11 +8,16 @@ exports.handler = async function (event, context) {
   const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${FILE_PATH}`;
 
   try {
-    // Get client IP from event headers
-    const clientIp = event.headers['x-forwarded-for'] || 
-                     event.headers['x-real-ip'] || 
-                     event.requestContext?.identity?.sourceIp || 
-                     'unknown';
+    // Get IPs from request body (sent from frontend)
+    let logEntry = 'unknown';
+    if (event.body) {
+      const { ipv4, ipv6, ip } = JSON.parse(event.body);
+      if (ipv4 && ipv6) {
+        logEntry = `IPv4: ${ipv4}, IPv6: ${ipv6}`;
+      } else if (ip) {
+        logEntry = ip; // fallback for single IP
+      }
+    }
 
     // Get current file content (if it exists)
     let sha = null;
@@ -33,8 +38,8 @@ exports.handler = async function (event, context) {
       throw new Error(`Failed to fetch file: ${getResponse.status}`);
     }
 
-    // Append new IP with timestamp
-    const newEntry = `${clientIp} - ${new Date().toISOString()}\n`;
+    // Append new IP entry with timestamp
+    const newEntry = `${logEntry} - ${new Date().toISOString()}\n`;
     const updatedContent = content + newEntry;
     const encodedContent = Buffer.from(updatedContent).toString('base64');
 
@@ -70,8 +75,8 @@ exports.handler = async function (event, context) {
         'Access-Control-Allow-Headers': 'Content-Type'
       },
       body: JSON.stringify({ 
-        message: 'IP logged successfully',
-        ip: clientIp 
+        message: 'IPs logged successfully',
+        logged: logEntry 
       })
     };
   } catch (error) {
